@@ -801,7 +801,8 @@ int WSAIoctl(SOCKET s, DWORD dwIoControlCode, WINPR_ATTR_UNUSED LPVOID lpvInBuff
 	ULONG nFlags = 0;
 	size_t offset = 0;
 	size_t ifreq_len = 0;
-	struct ifreq* ifreq = nullptr;
+	struct ifreq entry = WINPR_C_ARRAY_INIT;
+	const BYTE* ifreqPtr = nullptr;
 	struct ifconf ifconf = WINPR_C_ARRAY_INIT;
 	char address[128] = WINPR_C_ARRAY_INIT;
 	char broadcast[128] = WINPR_C_ARRAY_INIT;
@@ -928,75 +929,82 @@ int WSAIoctl(SOCKET s, DWORD dwIoControlCode, WINPR_ATTR_UNUSED LPVOID lpvInBuff
 	index = 0;
 	offset = 0;
 	numInterfaces = 0;
-	ifreq = ifconf.ifc_req;
+	ifreqPtr = (const BYTE*)ifconf.ifc_req;
 
 	while ((ifconf.ifc_len >= 0) && (offset < (size_t)ifconf.ifc_len) &&
 	       (numInterfaces < maxNumInterfaces))
 	{
+		size_t copyLen = sizeof(entry);
+		size_t remaining = (size_t)ifconf.ifc_len - offset;
+		if (copyLen > remaining)
+			copyLen = remaining;
+		ZeroMemory(&entry, sizeof(entry));
+		CopyMemory(&entry, ifreqPtr, copyLen);
+
 		pInterface = &pInterfaces[index];
 		pAddress = (struct sockaddr_in*)&pInterface->iiAddress;
 		pBroadcast = (struct sockaddr_in*)&pInterface->iiBroadcastAddress;
 		pNetmask = (struct sockaddr_in*)&pInterface->iiNetmask;
 
-		if (ioctl(fd, SIOCGIFFLAGS, ifreq) != 0)
+		if (ioctl(fd, SIOCGIFFLAGS, &entry) != 0)
 			goto next_ifreq;
 
 		nFlags = 0;
 
-		if (ifreq->ifr_flags & IFF_UP)
+		if (entry.ifr_flags & IFF_UP)
 			nFlags |= _IFF_UP;
 
-		if (ifreq->ifr_flags & IFF_BROADCAST)
+		if (entry.ifr_flags & IFF_BROADCAST)
 			nFlags |= _IFF_BROADCAST;
 
-		if (ifreq->ifr_flags & IFF_LOOPBACK)
+		if (entry.ifr_flags & IFF_LOOPBACK)
 			nFlags |= _IFF_LOOPBACK;
 
-		if (ifreq->ifr_flags & IFF_POINTOPOINT)
+		if (entry.ifr_flags & IFF_POINTOPOINT)
 			nFlags |= _IFF_POINTTOPOINT;
 
-		if (ifreq->ifr_flags & IFF_MULTICAST)
+		if (entry.ifr_flags & IFF_MULTICAST)
 			nFlags |= _IFF_MULTICAST;
 
 		pInterface->iiFlags = nFlags;
 
-		if (ioctl(fd, SIOCGIFADDR, ifreq) != 0)
+		if (ioctl(fd, SIOCGIFADDR, &entry) != 0)
 			goto next_ifreq;
 
-		if ((ifreq->ifr_addr.sa_family != AF_INET) && (ifreq->ifr_addr.sa_family != AF_INET6))
+		if ((entry.ifr_addr.sa_family != AF_INET) && (entry.ifr_addr.sa_family != AF_INET6))
 			goto next_ifreq;
 
-		getnameinfo(&ifreq->ifr_addr, sizeof(ifreq->ifr_addr), address, sizeof(address), nullptr, 0,
+		getnameinfo(&entry.ifr_addr, sizeof(entry.ifr_addr), address, sizeof(address), nullptr, 0,
 		            NI_NUMERICHOST);
-		inet_pton(ifreq->ifr_addr.sa_family, address, (void*)&pAddress->sin_addr);
+		inet_pton(entry.ifr_addr.sa_family, address, (void*)&pAddress->sin_addr);
 
-		if (ioctl(fd, SIOCGIFBRDADDR, ifreq) != 0)
+		if (ioctl(fd, SIOCGIFBRDADDR, &entry) != 0)
 			goto next_ifreq;
 
-		if ((ifreq->ifr_addr.sa_family != AF_INET) && (ifreq->ifr_addr.sa_family != AF_INET6))
+		if ((entry.ifr_addr.sa_family != AF_INET) && (entry.ifr_addr.sa_family != AF_INET6))
 			goto next_ifreq;
 
-		getnameinfo(&ifreq->ifr_addr, sizeof(ifreq->ifr_addr), broadcast, sizeof(broadcast),
+		getnameinfo(&entry.ifr_addr, sizeof(entry.ifr_addr), broadcast, sizeof(broadcast),
 		            nullptr, 0, NI_NUMERICHOST);
-		inet_pton(ifreq->ifr_addr.sa_family, broadcast, (void*)&pBroadcast->sin_addr);
+		inet_pton(entry.ifr_addr.sa_family, broadcast, (void*)&pBroadcast->sin_addr);
 
-		if (ioctl(fd, SIOCGIFNETMASK, ifreq) != 0)
+		if (ioctl(fd, SIOCGIFNETMASK, &entry) != 0)
 			goto next_ifreq;
 
-		if ((ifreq->ifr_addr.sa_family != AF_INET) && (ifreq->ifr_addr.sa_family != AF_INET6))
+		if ((entry.ifr_addr.sa_family != AF_INET) && (entry.ifr_addr.sa_family != AF_INET6))
 			goto next_ifreq;
 
-		getnameinfo(&ifreq->ifr_addr, sizeof(ifreq->ifr_addr), netmask, sizeof(netmask), nullptr, 0,
+		getnameinfo(&entry.ifr_addr, sizeof(entry.ifr_addr), netmask, sizeof(netmask), nullptr, 0,
 		            NI_NUMERICHOST);
-		inet_pton(ifreq->ifr_addr.sa_family, netmask, (void*)&pNetmask->sin_addr);
+		inet_pton(entry.ifr_addr.sa_family, netmask, (void*)&pNetmask->sin_addr);
 		numInterfaces++;
 	next_ifreq:
 #if !defined(__linux__) && !defined(__sun__) && !defined(__CYGWIN__) && !defined(EMSCRIPTEN)
-		ifreq_len = IFNAMSIZ + ifreq->ifr_addr.sa_len;
+		ifreq_len = IFNAMSIZ + entry.ifr_addr.sa_len;
 #else
-		ifreq_len = sizeof(*ifreq);
+		ifreq_len = sizeof(entry);
 #endif
-		ifreq = WINPR_PACKED_ALIGN_CAST(struct ifreq*, &((BYTE*)ifreq)[ifreq_len]);
+		ifreqPtr += ifreq_len;
 		offset += ifreq_len;
 		index++;
 	}

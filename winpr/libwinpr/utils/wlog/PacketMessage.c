@@ -161,7 +161,8 @@ static UINT16 IPv4Checksum(const BYTE* ipv4, int length)
 
 	while (length > 1)
 	{
-		const UINT16 tmp16 = *(WINPR_PACKED_ALIGN_CAST(const UINT16*, ipv4));
+		UINT16 tmp16;
+		CopyMemory(&tmp16, ipv4, sizeof(tmp16));
 		checksum += tmp16;
 		length -= 2;
 		ipv4 += 2;

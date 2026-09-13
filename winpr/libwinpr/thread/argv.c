@@ -92,7 +92,6 @@ LPSTR* CommandLineToArgvA(LPCSTR lpCmdLine, int* pNumArgs)
 	size_t length = 0;
 	const char* pBeg = nullptr;
 	const char* pEnd = nullptr;
-	char* buffer = nullptr;
 	char* pOutput = nullptr;
 	int numArgs = 0;
 	LPSTR* pArgs = nullptr;
@@ -191,17 +190,16 @@ LPSTR* CommandLineToArgvA(LPCSTR lpCmdLine, int* pNumArgs)
 	}
 
 	maxBufferSize = (maxNumArgs * (sizeof(char*))) + (cmdLineLength + 1);
-	buffer = calloc(maxBufferSize, sizeof(char));
+	pArgs = (LPSTR*)calloc(maxBufferSize, sizeof(char));
 
-	if (!buffer)
+	if (!pArgs)
 	{
 		free(lpEscapedCmdLine);
 		free(lpEscapedChars);
 		return nullptr;
 	}
 
-	pArgs = WINPR_PACKED_ALIGN_CAST(LPSTR*, buffer);
-	pOutput = &buffer[maxNumArgs * (sizeof(char*))];
+	pOutput = ((char*)pArgs) + (maxNumArgs * (sizeof(char*)));
 	p = (const char*)lpCmdLine;
 
 	while (p < lpCmdLine + cmdLineLength)

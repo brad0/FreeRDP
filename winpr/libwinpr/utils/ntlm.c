@@ -164,23 +164,23 @@ BOOL NTOWFv2FromHashW(const BYTE* NtHashV1, LPCWSTR User, UINT32 UserLengthInByt
 	if (!User)
 		return FALSE;
 
-	BYTE* buffer = (BYTE*)malloc(UserLengthInBytes + DomainLengthInBytes);
+	LPWSTR buffer = (LPWSTR)malloc(UserLengthInBytes + DomainLengthInBytes);
 	if (!buffer)
 		return FALSE;
 
 	/* Concatenate(UpperCase(User), Domain) */
 	CopyMemory(buffer, User, UserLengthInBytes);
-	CharUpperBuffW(WINPR_PACKED_ALIGN_CAST(LPWSTR, buffer), UserLengthInBytes / sizeof(WCHAR));
+	CharUpperBuffW(buffer, UserLengthInBytes / sizeof(WCHAR));
 
 	if (DomainLengthInBytes > 0)
 	{
-		CopyMemory(&buffer[UserLengthInBytes], Domain, DomainLengthInBytes);
+		CopyMemory(((BYTE*)buffer) + UserLengthInBytes, Domain, DomainLengthInBytes);
 	}
 
 	/* Compute the HMAC-MD5 hash of the above value using the NTLMv1 hash as the key, the result is
 	 * the NTLMv2 hash */
-	if (!winpr_HMAC(WINPR_MD_MD5, NtHashV1, 16, buffer, UserLengthInBytes + DomainLengthInBytes,
-	                NtHash, WINPR_MD5_DIGEST_LENGTH))
+	if (!winpr_HMAC(WINPR_MD_MD5, NtHashV1, 16, (const BYTE*)buffer,
+	                UserLengthInBytes + DomainLengthInBytes, NtHash, WINPR_MD5_DIGEST_LENGTH))
 		goto out_fail;
 
 	result = TRUE;

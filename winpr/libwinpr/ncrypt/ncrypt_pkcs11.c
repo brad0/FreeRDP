@@ -1288,7 +1288,7 @@ static SECURITY_STATUS NCryptP11KeyGetProperties(NCryptP11KeyHandle* keyHandle,
 			*pcbResult = 4;
 			if (pbOutput)
 			{
-				UINT32* ptr = WINPR_PACKED_ALIGN_CAST(UINT32*, pbOutput);
+				UINT32 slotId;
 
 				if (cbOutput < 4)
 					return NTE_NO_MEMORY;
@@ -1297,7 +1297,9 @@ static SECURITY_STATUS NCryptP11KeyGetProperties(NCryptP11KeyHandle* keyHandle,
 					ret = NTE_BAD_DATA;
 					goto out_final;
 				}
-				*ptr = (UINT32)keyHandle->slotId;
+
+				slotId = (UINT32)keyHandle->slotId;
+				CopyMemory(pbOutput, &slotId, sizeof(slotId));
 			}
 			return ERROR_SUCCESS;
 		}
